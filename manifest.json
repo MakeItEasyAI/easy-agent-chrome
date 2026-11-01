@@ -3,7 +3,8 @@
   "name": "easy-agent (MakeItEasy)",
   "version": "0.1.0",
   "description": "Fills web forms in your normal Chrome, driven by the easy-agent. Never submits; you review and submit yourself.",
-  "permissions": ["activeTab", "scripting", "nativeMessaging"],
+  "permissions": ["activeTab", "scripting", "nativeMessaging", "alarms"],
+  "host_permissions": ["https://*/*"],
   "action": {
     "default_popup": "popup.html",
     "default_title": "easy-agent"

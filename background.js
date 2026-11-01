@@ -14,6 +14,13 @@
 const HOST = "com.makeiteasy.easy_agent";
 let port = null;
 
+// Timestamped log so the service-worker console tells the connect/disconnect
+// story even after the worker is recycled.
+function log(msg) {
+  console.log("[easy " + new Date().toLocaleTimeString() + "] " + msg);
+  try { if (port) port.postMessage({ type: "log", text: msg }); } catch (e) { /* no port */ }
+}
+
 // Runs one {action,...} command on a tab (the front tab when none is given).
 // Looks in all frames, since job forms are often inside an embedded frame.
 async function runOnTab(command, tabId) {
@@ -32,12 +39,14 @@ async function runOnTab(command, tabId) {
   }
   if (!tab) return { ok: false, error: "no active tab (open the form and keep it in front)" };
   const url = tab.url || "";
+  log("runOnTab: tab " + tab.id + " url=" + (url.split("?")[0] || url));
   if (/^(chrome|edge|about|chrome-extension|devtools|view-source):/.test(url)) {
     return { ok: false, error: "the front tab is not a web page (" + (url.split("/")[0] || url) +
              "). Open the form and keep that tab in front." };
   }
   try {
     await chrome.scripting.executeScript({ target: { tabId: tab.id, allFrames: true }, files: ["page_actions.js"] });
+    log("injected page_actions into tab " + tab.id);
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id, allFrames: true },
       func: (cmd) => {
@@ -53,6 +62,7 @@ async function runOnTab(command, tabId) {
     if (command.action === "read_fields") {
       const merged = [];
       for (const r of results) if (Array.isArray(r.result)) merged.push(...r.result);
+      log("read_fields: " + merged.length + " field(s) across " + results.length + " frame(s)");
       return merged;
     }
     let firstError = null;
@@ -62,30 +72,38 @@ async function runOnTab(command, tabId) {
     }
     return firstError || { ok: false, error: "no frame could do that" };
   } catch (e) {
+    log("runOnTab error: " + String(e));
     return { ok: false, error: String(e) + " (on " + (url.split("?")[0] || "this tab") + ")" };
   }
 }
 
 // Stay connected to the agent bridge so the terminal can reach the browser.
 function connect() {
+  if (port) { log("connect() skipped: already connected"); return; }
+  log("connect(): opening native port to " + HOST);
   try {
     port = chrome.runtime.connectNative(HOST);
   } catch (e) {
     port = null;
+    log("connectNative threw: " + e + " — retrying in 5s");
     setTimeout(connect, 5000);   // agent not installed yet; try again later
     return;
   }
   port.onMessage.addListener(async (msg) => {
+    if (msg.type === "keepalive") { log("keepalive from bridge"); return; }
     if (msg.type === "command") {
+      log("command #" + msg.id + " action=" + msg.action);
       const result = await runOnTab(msg, null);   // the front tab (your form)
       if (port) port.postMessage({ type: "result", id: msg.id, result });
     }
   });
   port.onDisconnect.addListener(() => {
-    void chrome.runtime.lastError;                 // handled: no console warning
+    const err = chrome.runtime.lastError;          // handled: no console warning
+    log("port disconnected" + (err ? (": " + err.message) : "") + " — reconnect in 3s");
     port = null;
     setTimeout(connect, 3000);                     // bridge closed; reconnect
   });
+  log("connect(): port opened");
 }
 connect();
 
@@ -93,6 +111,16 @@ connect();
 // back up without needing the popup.
 chrome.runtime.onStartup.addListener(() => { if (!port) connect(); });
 chrome.runtime.onInstalled.addListener(() => { if (!port) connect(); });
+
+// Self-healing safety net. Chrome shuts down idle MV3 service workers, which
+// drops the bridge; a plain setTimeout cannot revive a worker that is already
+// being torn down. An alarm, however, wakes a sleeping worker on schedule, so
+// we reconnect automatically without a manual extension reload. 30s (0.5 min)
+// is Chrome's minimum alarm period.
+chrome.alarms.create("keepalive", { periodInMinutes: 0.5 });
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === "keepalive") { log("alarm fired; port=" + (port ? "up" : "down")); if (!port) connect(); }
+});
 
 // Manual popup helpers (Check agent / List fields) for debugging.
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
