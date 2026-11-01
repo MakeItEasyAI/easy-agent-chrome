@@ -3,17 +3,32 @@
 <head>
   <meta charset="utf-8" />
   <style>
-    body { font: 13px -apple-system, system-ui, sans-serif; width: 280px; padding: 12px; }
+    body { font: 13px -apple-system, system-ui, sans-serif; width: 320px; padding: 12px; }
     h1 { font-size: 14px; margin: 0 0 8px; }
+    h2 { font-size: 12px; color: #666; margin: 14px 0 4px; text-transform: uppercase; letter-spacing: .04em; }
     label { display: block; margin: 8px 0 2px; color: #444; }
     input { width: 100%; box-sizing: border-box; padding: 6px; }
-    button { margin-top: 10px; padding: 6px 10px; }
-    #result { margin-top: 10px; white-space: pre-wrap; color: #333; }
+    button { margin-top: 8px; padding: 6px 10px; }
+    #log, #result { margin-top: 10px; white-space: pre-wrap; color: #333; font-size: 12px; }
+    #log { background: #f6f6f6; padding: 8px; border-radius: 4px; min-height: 18px; }
     .note { color: #888; font-size: 11px; margin-top: 10px; }
+    hr { border: 0; border-top: 1px solid #eee; margin: 14px 0; }
   </style>
 </head>
 <body>
-  <h1>easy-agent (manual test)</h1>
+  <h1>easy-agent</h1>
+
+  <h2>Fill a form from your resume</h2>
+  <label>What to do</label>
+  <input id="task" value="fill this form from my resume" />
+  <label>Resume PDF path (optional if set in config)</label>
+  <input id="resume" placeholder="~/Documents/your_resume.pdf" />
+  <button id="run">Run</button>
+  <div id="log"></div>
+
+  <hr />
+
+  <h2>Manual (one field)</h2>
   <label>Field label on the page</label>
   <input id="field" placeholder="e.g. Email" />
   <label>Value to type</label>
@@ -22,7 +37,8 @@
   <button id="list">List fields</button>
   <button id="ping">Check agent</button>
   <div id="result"></div>
-  <div class="note">This never submits the form. Review and submit yourself.</div>
+
+  <div class="note">Never submits the form. Review and submit yourself.</div>
   <script src="popup.js"></script>
 </body>
 </html>
