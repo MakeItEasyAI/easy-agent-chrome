@@ -1,0 +1,9 @@
+{
+  "name": "com.makeiteasy.easy_agent",
+  "description": "Native messaging host for the easy-agent Chrome extension",
+  "path": "REPLACE_WITH_ABSOLUTE_PATH_TO/easy-agent-host",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://REPLACE_WITH_YOUR_EXTENSION_ID/"
+  ]
+}

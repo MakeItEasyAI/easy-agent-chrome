@@ -1,0 +1,16 @@
+# macOS / editor
+.DS_Store
+.vscode/
+.idea/
+
+# Secrets — never commit keys
+.env
+*.key
+
+# The filled-in native host manifest (contains machine-specific absolute paths)
+native-host/com.makeiteasy.easy_agent.json
+
+# Packaged extension
+*.zip
+*.crx
+*.pem
