@@ -14,3 +14,20 @@ document.getElementById("fill").addEventListener("click", () => {
 });
 
 document.getElementById("list").addEventListener("click", () => send({ action: "read_fields" }));
+
+// "Check agent": pings the C++ agent through native messaging. Proves the
+// agent is installed and reachable. Does not touch the page.
+document.getElementById("ping").addEventListener("click", () => {
+  try {
+    chrome.runtime.sendNativeMessage("com.makeiteasy.easy_agent", { type: "ping" }, (reply) => {
+      if (chrome.runtime.lastError) {
+        show({ ok: false, error: "agent not reachable: " + chrome.runtime.lastError.message +
+               "\n(run native-host/install.sh, see README)" });
+      } else {
+        show({ ok: true, agent: reply });
+      }
+    });
+  } catch (e) {
+    show({ ok: false, error: String(e) });
+  }
+});
