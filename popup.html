@@ -3,41 +3,28 @@
 <head>
   <meta charset="utf-8" />
   <style>
-    body { font: 13px -apple-system, system-ui, sans-serif; width: 320px; padding: 12px; }
-    h1 { font-size: 14px; margin: 0 0 8px; }
-    h2 { font-size: 12px; color: #666; margin: 14px 0 4px; text-transform: uppercase; letter-spacing: .04em; }
-    label { display: block; margin: 8px 0 2px; color: #444; }
-    input { width: 100%; box-sizing: border-box; padding: 6px; }
+    body { font: 13px -apple-system, system-ui, sans-serif; width: 300px; padding: 12px; }
+    h1 { font-size: 14px; margin: 0 0 6px; }
+    p { color: #444; margin: 6px 0; }
+    code { background: #f2f2f2; padding: 1px 4px; border-radius: 3px; }
     button { margin-top: 8px; padding: 6px 10px; }
-    #log, #result { margin-top: 10px; white-space: pre-wrap; color: #333; font-size: 12px; }
-    #log { background: #f6f6f6; padding: 8px; border-radius: 4px; min-height: 18px; }
+    #result { margin-top: 10px; white-space: pre-wrap; color: #333; font-size: 12px; }
     .note { color: #888; font-size: 11px; margin-top: 10px; }
-    hr { border: 0; border-top: 1px solid #eee; margin: 14px 0; }
+    hr { border: 0; border-top: 1px solid #eee; margin: 12px 0; }
   </style>
 </head>
 <body>
   <h1>easy-agent</h1>
-
-  <h2>Fill a form from your resume</h2>
-  <label>What to do</label>
-  <input id="task" value="fill this form from my resume" />
-  <label>Resume PDF path (optional if set in config)</label>
-  <input id="resume" placeholder="~/Documents/your_resume.pdf" />
-  <button id="run">Run</button>
-  <div id="log"></div>
+  <p>Drive this from your terminal. Open the form in the front tab, then run:</p>
+  <p><code>easy fill form</code></p>
+  <p>The agent reads the form, fills it from your resume, and leaves the rest
+     for you. It never submits.</p>
 
   <hr />
-
-  <h2>Manual (one field)</h2>
-  <label>Field label on the page</label>
-  <input id="field" placeholder="e.g. Email" />
-  <label>Value to type</label>
-  <input id="value" placeholder="e.g. nikhil@example.com" />
-  <button id="fill">Fill</button>
-  <button id="list">List fields</button>
+  <p class="note">Checks (optional):</p>
   <button id="ping">Check agent</button>
+  <button id="list">List fields</button>
   <div id="result"></div>
-
   <div class="note">Never submits the form. Review and submit yourself.</div>
   <script src="popup.js"></script>
 </body>

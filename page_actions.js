@@ -88,20 +88,23 @@ globalThis.__easyAgent = (() => {
     return { ok: true, error: "" };
   }
 
-  // Lists the form fields on the page (labels only), so the agent can see what
-  // is there before filling.
+  // Lists the form fields on the page, using the SAME rich label lookup as
+  // fill (aria-labelledby, wrapping <label>, Google-Forms question heading),
+  // so forms that label inputs indirectly (like Google Forms) are seen too.
   function readFields() {
-    const trim = s => (s || "").replace(/\s+/g, " ").replace(/\*/g, "").trim();
+    const fields = [...document.querySelectorAll("input, textarea, [contenteditable=true]")]
+      .filter(el => !["hidden", "submit", "button", "image", "reset", "file"]
+        .includes((el.type || "").toLowerCase()));
     const out = [];
-    document.querySelectorAll("input, textarea, select, [contenteditable=true]").forEach(el => {
-      const type = (el.type || el.tagName).toLowerCase();
-      if (type === "hidden") return;
-      let label = el.getAttribute("aria-label") || el.getAttribute("placeholder") || el.getAttribute("name") || "";
-      const wrap = el.closest("label");
-      if (!label && wrap) label = wrap.innerText;
-      label = trim(label);
-      if (label) out.push({ label, type });
-    });
+    const seen = new Set();
+    for (const el of fields) {
+      const labels = labelsOf(el);
+      const label = labels.length ? labels[0] : "";
+      if (label && !seen.has(label)) {
+        seen.add(label);
+        out.push({ label, type: (el.type || el.tagName).toLowerCase() });
+      }
+    }
     return out.slice(0, 60);
   }
 
