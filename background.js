@@ -28,6 +28,15 @@ async function runOnTab(command, tabId) {
   if (tabId != null) {
     try { tab = await chrome.tabs.get(tabId); } catch (e) { tab = null; }
   }
+  // If the agent told us which URL it just opened, target THAT tab, even if it
+  // isn't the active one. Avoids grabbing chrome://extensions or the wrong tab.
+  if (!tab && command && command.url) {
+    const base = command.url.split("#")[0];
+    const noQuery = base.split("?")[0];
+    const all = await chrome.tabs.query({});
+    tab = all.find(t => (t.url || "").split("#")[0] === base) ||
+          all.find(t => (t.url || "").startsWith(noQuery));
+  }
   if (!tab) {
     // Prefer the active tab of the front window; fall back to any active
     // web-page tab (the terminal-driven path has no popup to pin the tab).
@@ -53,6 +62,7 @@ async function runOnTab(command, tabId) {
         const a = globalThis.__easyAgent;
         if (!a) return { ok: false, error: "page helper not loaded" };
         if (cmd.action === "fill") return a.fill(cmd.field, cmd.value);
+        if (cmd.action === "choose") return a.choose(cmd.field, cmd.value);
         if (cmd.action === "click") return a.click(cmd.text);
         if (cmd.action === "read_fields") return a.readFields();
         return { ok: false, error: "unknown action: " + cmd.action };
