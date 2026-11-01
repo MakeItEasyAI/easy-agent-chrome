@@ -28,25 +28,33 @@ async function runOnTab(command, tabId) {
   if (tabId != null) {
     try { tab = await chrome.tabs.get(tabId); } catch (e) { tab = null; }
   }
-  // If the agent told us which URL it just opened, target THAT tab, even if it
-  // isn't the active one. Avoids grabbing chrome://extensions or the wrong tab.
+  // When the agent gives a URL, operate ONLY on that URL's tab — match it, or
+  // open it. NEVER fall back to whatever tab happens to be active: that could
+  // fill some OTHER page you have open (e.g. a real job application).
   if (!tab && command && command.url) {
     const base = command.url.split("#")[0];
     const noQuery = base.split("?")[0];
     const all = await chrome.tabs.query({});
     tab = all.find(t => (t.url || "").split("#")[0] === base) ||
           all.find(t => (t.url || "").startsWith(noQuery));
-  }
-  if (!tab) {
-    // Prefer the active tab of the front window; fall back to any active
-    // web-page tab (the terminal-driven path has no popup to pin the tab).
+    if (tab) {
+      log("matched form tab " + tab.id + " by url");
+    } else {
+      log("form tab not open; opening it");
+      const created = await chrome.tabs.create({ url: command.url, active: true });
+      await new Promise(r => setTimeout(r, 1500));
+      try { tab = await chrome.tabs.get(created.id); } catch (e) { tab = created; }
+    }
+    if (!tab) return { ok: false, error: "could not open the form tab for " + command.url };
+  } else if (!tab) {
+    // No URL given: act on the tab you're looking at (fill the current form).
     [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
     if (!tab || !/^https?:/.test(tab.url || "")) {
       const tabs = await chrome.tabs.query({ active: true });
       tab = tabs.find(t => /^https?:/.test(t.url || "")) || tab;
     }
+    if (!tab) return { ok: false, error: "no active tab (open the form and keep it in front)" };
   }
-  if (!tab) return { ok: false, error: "no active tab (open the form and keep it in front)" };
   const url = tab.url || "";
   log("runOnTab: tab " + tab.id + " url=" + (url.split("?")[0] || url));
   if (/^(chrome|edge|about|chrome-extension|devtools|view-source):/.test(url)) {
