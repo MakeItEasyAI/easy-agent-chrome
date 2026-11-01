@@ -36,22 +36,28 @@ async function runOnActiveTab(command) {
   }
 }
 
-// --- native messaging: talk to the easy-agent ---
+// --- native messaging: talk to the easy-agent (optional) ---
+// Until the C++ agent's native-host mode exists, this simply stays disconnected.
+// The popup (manual Fill / List fields) works without it.
 let port = null;
 
 function connectAgent() {
+  let p;
   try {
-    port = chrome.runtime.connectNative(HOST);
+    p = chrome.runtime.connectNative(HOST);
   } catch (e) {
-    console.warn("easy-agent native host not available:", e);
-    port = null;
-    return;
+    return;   // host not installed yet
   }
-  port.onMessage.addListener(async (command) => {
+  p.onDisconnect.addListener(() => {
+    // Reading lastError marks it handled, so Chrome does not log a warning.
+    void chrome.runtime.lastError;
+    port = null;
+  });
+  p.onMessage.addListener(async (command) => {
     const result = await runOnActiveTab(command);
     if (port) port.postMessage({ id: command.id, ...result });
   });
-  port.onDisconnect.addListener(() => { port = null; });
+  port = p;
 }
 
 // The popup also uses runOnActiveTab directly (for manual testing without the
