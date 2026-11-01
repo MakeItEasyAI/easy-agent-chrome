@@ -13,7 +13,9 @@ globalThis.__easyAgent = (() => {
   const norm = s => (s || "").replace(/\s+/g, " ").replace(/\*/g, "").trim().toLowerCase();
 
   const labelsOf = el => {
-    const out = [el.getAttribute("aria-label"), el.getAttribute("placeholder"), el.getAttribute("name")];
+    const out = [];
+    // Human-readable labels FIRST, so a field shows as "Country code", not the
+    // machine name "mobilephone.countrycode".
     if (el.id) document.querySelectorAll('label[for="' + CSS.escape(el.id) + '"]').forEach(l => out.push(l.innerText));
     const wrap = el.closest("label");
     if (wrap) out.push(wrap.innerText);
@@ -21,6 +23,17 @@ globalThis.__easyAgent = (() => {
     if (by) by.split(/\s+/).forEach(id => { const e = document.getElementById(id); if (e) out.push(e.innerText); });
     const item = el.closest("[role=listitem]");
     if (item) { const h = item.querySelector("[role=heading]"); if (h) out.push(h.innerText); }
+    // A <label> in the field's immediate container, even when not linked by
+    // for= (common in React-based ATS forms).
+    for (let node = el.parentElement, i = 0; node && i < 3; node = node.parentElement, i++) {
+      const lbl = node.querySelector("label");
+      if (lbl && !lbl.contains(el)) { out.push(lbl.innerText); break; }
+    }
+    // Attribute fallbacks last; the machine name is the very last resort.
+    out.push(el.getAttribute("aria-label"));
+    out.push(el.getAttribute("title"));
+    out.push(el.getAttribute("placeholder"));
+    out.push(el.getAttribute("name"));
     return out.map(norm).filter(Boolean);
   };
 
