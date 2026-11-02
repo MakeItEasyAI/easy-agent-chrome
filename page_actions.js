@@ -33,6 +33,9 @@ globalThis.__easyAgent = (() => {
     out.push(el.getAttribute("aria-label"));
     out.push(el.getAttribute("title"));
     out.push(el.getAttribute("placeholder"));
+    // Rich editors (Instagram/WhatsApp message boxes) label themselves with
+    // aria-placeholder, e.g. "Message...", not a real placeholder.
+    out.push(el.getAttribute("aria-placeholder"));
     out.push(el.getAttribute("name"));
     return out.map(norm).filter(Boolean);
   };
@@ -49,7 +52,8 @@ globalThis.__easyAgent = (() => {
 
   function fill(field, value) {
     const want = norm(field);
-    const fields = [...document.querySelectorAll("input, textarea, [contenteditable=true]")]
+    const fields = [...document.querySelectorAll(
+      "input, textarea, [contenteditable]:not([contenteditable=false]), [role=textbox]")]
       .filter(el => !["hidden", "submit", "button", "image", "reset", "file", "radio", "checkbox"]
         .includes((el.type || "").toLowerCase()));
 
@@ -72,9 +76,12 @@ globalThis.__easyAgent = (() => {
       let inserted = false;
       try { inserted = document.execCommand("insertText", false, value); } catch (e) { inserted = false; }
       if (!inserted) el.innerText = value;
-    } else {
+    } else if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") {
       const proto = el.tagName === "TEXTAREA" ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
       Object.getOwnPropertyDescriptor(proto, "value").set.call(el, value);
+    } else {
+      // A role=textbox that isn't a real input/contenteditable: last-resort text set.
+      el.textContent = value;
     }
     el.dispatchEvent(new Event("input", { bubbles: true }));
     el.dispatchEvent(new Event("change", { bubbles: true }));
@@ -165,7 +172,8 @@ globalThis.__easyAgent = (() => {
 
     // 4) Text fields (same rich label lookup as fill), skipping anything a
     // choice question above already claimed.
-    const textFields = [...document.querySelectorAll("input, textarea, [contenteditable=true]")]
+    const textFields = [...document.querySelectorAll(
+      "input, textarea, [contenteditable]:not([contenteditable=false]), [role=textbox]")]
       .filter(el => !["hidden", "submit", "button", "image", "reset", "file", "radio", "checkbox"]
         .includes((el.type || "").toLowerCase()));
     for (const el of textFields) {
