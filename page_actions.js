@@ -65,17 +65,24 @@ globalThis.__easyAgent = (() => {
     el.scrollIntoView({ block: "center" });
     el.focus();
     if (el.isContentEditable) {
-      el.innerText = value;
+      // Rich editors (Instagram/WhatsApp-web message boxes, etc.) ignore a plain
+      // innerText set — insert through the browser's text pipeline so the editor
+      // registers it. Fall back to innerText if that is unavailable.
+      try { document.execCommand("selectAll", false, null); } catch (e) { /* ignore */ }
+      let inserted = false;
+      try { inserted = document.execCommand("insertText", false, value); } catch (e) { inserted = false; }
+      if (!inserted) el.innerText = value;
     } else {
       const proto = el.tagName === "TEXTAREA" ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
       Object.getOwnPropertyDescriptor(proto, "value").set.call(el, value);
     }
     el.dispatchEvent(new Event("input", { bubbles: true }));
     el.dispatchEvent(new Event("change", { bubbles: true }));
-    el.blur();
+    if (!el.isContentEditable) el.blur();   // don't blur a message box; keep it ready to send
 
-    const now = el.isContentEditable ? el.innerText : el.value;
-    return { ok: now === value, error: now === value ? "" : "the page did not accept the text" };
+    const now = el.isContentEditable ? (el.innerText || el.textContent || "") : el.value;
+    const ok = now === value || now.includes(value);
+    return { ok, error: ok ? "" : "the page did not accept the text" };
   }
 
   function click(text) {
