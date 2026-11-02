@@ -47,13 +47,14 @@ async function runOnTab(command, tabId) {
     }
     if (!tab) return { ok: false, error: "could not open the form tab for " + command.url };
   } else if (!tab) {
-    // No URL given: act on the tab you're looking at (fill the current form).
-    [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-    if (!tab || !/^https?:/.test(tab.url || "")) {
-      const tabs = await chrome.tabs.query({ active: true });
-      tab = tabs.find(t => /^https?:/.test(t.url || "")) || tab;
-    }
-    if (!tab) return { ok: false, error: "no active tab (open the form and keep it in front)" };
+    // No URL given: act on the web page you're looking at. Pick the most
+    // recently used http(s) tab and SKIP chrome:// pages (like the Extensions
+    // page you might be on), so a just-opened page (e.g. YouTube) is chosen.
+    const all = await chrome.tabs.query({});
+    const web = all.filter((t) => /^https?:/.test(t.url || ""));
+    web.sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0));
+    tab = web[0] || null;
+    if (!tab) return { ok: false, error: "no web page open in Chrome to act on (open the site first)" };
   }
   const url = tab.url || "";
   log("runOnTab: tab " + tab.id + " url=" + (url.split("?")[0] || url));
