@@ -61,38 +61,58 @@ async function runOnTab(command, tabId) {
     return { ok: false, error: "the front tab is not a web page (" + (url.split("/")[0] || url) +
              "). Open the form and keep that tab in front." };
   }
-  try {
-    await chrome.scripting.executeScript({ target: { tabId: tab.id, allFrames: true }, files: ["page_actions.js"] });
-    log("injected page_actions into tab " + tab.id);
-    const results = await chrome.scripting.executeScript({
-      target: { tabId: tab.id, allFrames: true },
-      func: (cmd) => {
-        const a = globalThis.__easyAgent;
-        if (!a) return { ok: false, error: "page helper not loaded" };
-        if (cmd.action === "fill") return a.fill(cmd.field, cmd.value);
-        if (cmd.action === "choose") return a.choose(cmd.field, cmd.value);
-        if (cmd.action === "click") return a.click(cmd.text);
-        if (cmd.action === "read_fields") return a.readFields();
-        return { ok: false, error: "unknown action: " + cmd.action };
-      },
-      args: [command],
-    });
-    if (command.action === "read_fields") {
-      const merged = [];
-      for (const r of results) if (Array.isArray(r.result)) merged.push(...r.result);
-      log("read_fields: " + merged.length + " field(s) across " + results.length + " frame(s)");
-      return merged;
-    }
-    let firstError = null;
-    for (const r of results) {
-      if (r.result && r.result.ok) return r.result;
-      if (!firstError && r.result && r.result.error) firstError = r.result;
-    }
-    return firstError || { ok: false, error: "no frame could do that" };
-  } catch (e) {
-    log("runOnTab error: " + String(e));
-    return { ok: false, error: String(e) + " (on " + (url.split("?")[0] || "this tab") + ")" };
+
+  // Wait for the page to finish loading before touching it (a freshly opened
+  // page, especially a heavy SPA like YouTube, is not ready immediately).
+  for (let i = 0; i < 20 && tab.status && tab.status !== "complete"; i++) {
+    await new Promise((r) => setTimeout(r, 500));
+    try { tab = await chrome.tabs.get(tab.id); } catch (e) { break; }
   }
+
+  // Inject the page helper and run the command. Retry a few times: right after a
+  // page loads the helper may not be in place yet, or an SPA may still be
+  // settling, which shows up as "page helper not loaded".
+  let last = { ok: false, error: "page helper not loaded" };
+  for (let attempt = 0; attempt < 4; attempt++) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, 1200));
+    try {
+      await chrome.scripting.executeScript({ target: { tabId: tab.id, allFrames: true }, files: ["page_actions.js"] });
+      const results = await chrome.scripting.executeScript({
+        target: { tabId: tab.id, allFrames: true },
+        func: (cmd) => {
+          const a = globalThis.__easyAgent;
+          if (!a) return { ok: false, error: "page helper not loaded" };
+          if (cmd.action === "fill") return a.fill(cmd.field, cmd.value);
+          if (cmd.action === "choose") return a.choose(cmd.field, cmd.value);
+          if (cmd.action === "click") return a.click(cmd.text);
+          if (cmd.action === "read_fields") return a.readFields();
+          return { ok: false, error: "unknown action: " + cmd.action };
+        },
+        args: [command],
+      });
+      if (command.action === "read_fields") {
+        const merged = [];
+        for (const r of results) if (Array.isArray(r.result)) merged.push(...r.result);
+        log("read_fields: " + merged.length + " field(s) across " + results.length + " frame(s)");
+        if (merged.length > 0) return merged;
+        last = [];   // empty; let it retry in case the page is still rendering
+        continue;
+      }
+      let firstError = null;
+      for (const r of results) {
+        if (r.result && r.result.ok) return r.result;
+        if (!firstError && r.result && r.result.error) firstError = r.result;
+      }
+      last = firstError || { ok: false, error: "no frame could do that" };
+      // Only a "helper not loaded" is worth retrying; a real "not found" is final.
+      if (!/helper not loaded/.test(last.error || "")) return last;
+      log("attempt " + (attempt + 1) + ": " + last.error + " - retrying");
+    } catch (e) {
+      last = { ok: false, error: String(e) + " (on " + (url.split("?")[0] || "this tab") + ")" };
+      log("runOnTab error: " + last.error);
+    }
+  }
+  return last;
 }
 
 // Stay connected to the agent bridge so the terminal can reach the browser.
