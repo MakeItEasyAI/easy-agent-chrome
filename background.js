@@ -86,6 +86,7 @@ async function runOnTab(command, tabId) {
           if (cmd.action === "choose") return a.choose(cmd.field, cmd.value);
           if (cmd.action === "click") return a.click(cmd.text);
           if (cmd.action === "read_fields") return a.readFields();
+          if (cmd.action === "read_page") return a.readPage();
           return { ok: false, error: "unknown action: " + cmd.action };
         },
         args: [command],
@@ -96,6 +97,21 @@ async function runOnTab(command, tabId) {
         log("read_fields: " + merged.length + " field(s) across " + results.length + " frame(s)");
         if (merged.length > 0) return merged;
         last = [];   // empty; let it retry in case the page is still rendering
+        continue;
+      }
+      if (command.action === "read_page") {
+        const fields = [];
+        const clickables = [];
+        for (const r of results) {
+          const o = r.result;
+          if (o && typeof o === "object") {
+            if (Array.isArray(o.fields)) fields.push(...o.fields);
+            if (Array.isArray(o.clickables)) clickables.push(...o.clickables);
+          }
+        }
+        log("read_page: " + fields.length + " fields, " + clickables.length + " clickables");
+        if (fields.length || clickables.length) return { fields, clickables };
+        last = { fields: [], clickables: [] };
         continue;
       }
       let firstError = null;

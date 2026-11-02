@@ -243,6 +243,26 @@ globalThis.__easyAgent = (() => {
     return { ok: true, error: "" };
   }
 
-  return { fill, click, readFields, choose };
+  return { fill, click, readFields, choose, readPage };
+
+  // A compact view of the page for web_do: the fillable fields plus the visible
+  // text of clickable things (links, buttons, tabs, search results). Lets the
+  // model decide the next click/fill without being told the exact target.
+  function readPage() {
+    const fields = readFields();
+    const clickables = [];
+    const seen = new Set();
+    const sel = "button, a, [role=button], [role=link], [role=tab], [role=menuitem], " +
+                "[role=option], input[type=submit], input[type=button]";
+    for (const el of document.querySelectorAll(sel)) {
+      const t = norm(el.innerText || el.getAttribute("aria-label") || el.value);
+      if (t && t.length >= 1 && t.length <= 80 && !seen.has(t)) {
+        seen.add(t);
+        clickables.push(t);
+        if (clickables.length >= 50) break;
+      }
+    }
+    return { fields, clickables };
+  }
 })();
 
