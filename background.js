@@ -153,6 +153,37 @@ async function runOnTab(command, tabId) {
   return last;
 }
 
+// Opens a page in a NEW tab and returns its id, so later commands can target
+// exactly that tab (read_content with tabId) even when several similar pages
+// are open, e.g. one LinkedIn people search per company. Only http(s) URLs.
+// Tabs opened this way are remembered so close_tab can only close those.
+const ourTabs = new Set();
+async function openUrl(url) {
+  if (!/^https?:\/\//.test(url || "")) return { ok: false, error: "open_url needs an http(s) URL" };
+  try {
+    let tab = await chrome.tabs.create({ url, active: false });
+    ourTabs.add(tab.id);
+    for (let i = 0; i < 30; i++) {
+      await new Promise((r) => setTimeout(r, 500));
+      try { tab = await chrome.tabs.get(tab.id); } catch (e) { break; }
+      if (tab.status === "complete") break;
+    }
+    log("open_url: tab " + tab.id + " " + (url.split("?")[0] || url));
+    return { ok: true, tabId: tab.id };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
+// Closes a tab we opened with open_url. Never closes a tab we did not open.
+async function closeTab(tabId) {
+  if (tabId == null) return { ok: false, error: "close_tab needs a tabId" };
+  if (!ourTabs.has(tabId)) return { ok: false, error: "refusing to close a tab the agent did not open" };
+  try { await chrome.tabs.remove(tabId); } catch (e) { /* already gone */ }
+  ourTabs.delete(tabId);
+  return { ok: true };
+}
+
 // Stay connected to the agent bridge so the terminal can reach the browser.
 function connect() {
   if (port) { log("connect() skipped: already connected"); return; }
@@ -169,7 +200,10 @@ function connect() {
     if (msg.type === "keepalive") { log("keepalive from bridge"); return; }
     if (msg.type === "command") {
       log("command #" + msg.id + " action=" + msg.action);
-      const result = await runOnTab(msg, null);   // the front tab (your form)
+      let result;
+      if (msg.action === "open_url") result = await openUrl(msg.url);
+      else if (msg.action === "close_tab") result = await closeTab(msg.tabId);
+      else result = await runOnTab(msg, msg.tabId != null ? msg.tabId : null);
       if (port) port.postMessage({ type: "result", id: msg.id, result });
     }
   });
