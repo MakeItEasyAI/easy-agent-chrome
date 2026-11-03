@@ -258,7 +258,28 @@ globalThis.__easyAgent = (() => {
     return { ok: true, error: "" };
   }
 
-  return { fill, click, readFields, choose, readPage };
+  return { fill, click, readFields, choose, readPage, readContent };
+
+  // A text+links snapshot of the page for "collect jobs": the visible text
+  // (what you can see/scrolled to) plus every real link with its URL, so the
+  // agent's model can spot job postings and "we're hiring" posts and pair each
+  // with its apply link or the author to contact. Read-only; touches nothing.
+  function readContent() {
+    const text = (document.body ? document.body.innerText : "")
+      .replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim().slice(0, 15000);
+    const links = [];
+    const seen = new Set();
+    for (const a of document.querySelectorAll("a[href]")) {
+      const href = (a.href || "").split("#")[0];
+      if (!/^https?:/.test(href) || seen.has(href)) continue;
+      const t = (a.innerText || a.getAttribute("aria-label") || "")
+        .replace(/\s+/g, " ").trim().slice(0, 120);
+      seen.add(href);
+      links.push({ text: t, href });
+      if (links.length >= 80) break;
+    }
+    return { text, links };
+  }
 
   // A compact view of the page for web_do: the fillable fields plus the visible
   // text of clickable things (links, buttons, tabs, search results). Lets the

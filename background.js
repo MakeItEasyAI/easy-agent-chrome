@@ -88,6 +88,7 @@ async function runOnTab(command, tabId) {
           if (cmd.action === "click") return a.click(cmd.text);
           if (cmd.action === "read_fields") return a.readFields();
           if (cmd.action === "read_page") return a.readPage();
+          if (cmd.action === "read_content") return a.readContent();
           return { ok: false, error: "unknown action: " + cmd.action };
         },
         args: [command],
@@ -113,6 +114,26 @@ async function runOnTab(command, tabId) {
         log("read_page: " + fields.length + " fields, " + clickables.length + " clickables");
         if (fields.length || clickables.length) return { fields, clickables };
         last = { fields: [], clickables: [] };
+        continue;
+      }
+      if (command.action === "read_content") {
+        let text = "";
+        const links = [];
+        const seen = new Set();
+        for (const r of results) {
+          const o = r.result;
+          if (o && typeof o === "object") {
+            if (o.text) text += (text ? "\n" : "") + o.text;
+            if (Array.isArray(o.links)) {
+              for (const l of o.links) {
+                if (l && l.href && !seen.has(l.href)) { seen.add(l.href); links.push(l); }
+              }
+            }
+          }
+        }
+        log("read_content: " + text.length + " chars, " + links.length + " links");
+        if (text.length || links.length) return { text, links };
+        last = { text: "", links: [] };
         continue;
       }
       let firstError = null;
