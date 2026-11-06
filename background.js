@@ -89,6 +89,7 @@ async function runOnTab(command, tabId) {
           if (cmd.action === "read_fields") return a.readFields();
           if (cmd.action === "read_page") return a.readPage();
           if (cmd.action === "read_content") return a.readContent();
+          if (cmd.action === "send_message") return a.sendMessage();
           return { ok: false, error: "unknown action: " + cmd.action };
         },
         args: [command],
@@ -153,15 +154,15 @@ async function runOnTab(command, tabId) {
   return last;
 }
 
-// Opens a page in a NEW tab and returns its id, so later commands can target
+// Opens a page in a NEW tab (in front when `active`, else in the background)
 // exactly that tab (read_content with tabId) even when several similar pages
 // are open, e.g. one LinkedIn people search per company. Only http(s) URLs.
 // Tabs opened this way are remembered so close_tab can only close those.
 const ourTabs = new Set();
-async function openUrl(url) {
+async function openUrl(url, active) {
   if (!/^https?:\/\//.test(url || "")) return { ok: false, error: "open_url needs an http(s) URL" };
   try {
-    let tab = await chrome.tabs.create({ url, active: false });
+    let tab = await chrome.tabs.create({ url, active: !!active });
     ourTabs.add(tab.id);
     for (let i = 0; i < 30; i++) {
       await new Promise((r) => setTimeout(r, 500));
@@ -201,7 +202,7 @@ function connect() {
     if (msg.type === "command") {
       log("command #" + msg.id + " action=" + msg.action);
       let result;
-      if (msg.action === "open_url") result = await openUrl(msg.url);
+      if (msg.action === "open_url") result = await openUrl(msg.url, msg.active);
       else if (msg.action === "close_tab") result = await closeTab(msg.tabId);
       else result = await runOnTab(msg, msg.tabId != null ? msg.tabId : null);
       if (port) port.postMessage({ type: "result", id: msg.id, result });

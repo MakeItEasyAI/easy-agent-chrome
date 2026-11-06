@@ -258,7 +258,28 @@ globalThis.__easyAgent = (() => {
     return { ok: true, error: "" };
   }
 
-  return { fill, click, readFields, choose, readPage, readContent };
+  return { fill, click, readFields, choose, readPage, readContent, sendMessage };
+
+  // Presses Send in LinkedIn's message compose box - and nothing else. This is
+  // the one deliberate exception to "never click Send": the agent only calls it
+  // after the user typed "y" to a "Send to <name>?" question in the terminal,
+  // and it refuses on any other site or any other button.
+  function sendMessage() {
+    if (!/(^|\.)linkedin\.com$/.test(location.hostname)) {
+      return { ok: false, error: "send_message only works in LinkedIn messaging" };
+    }
+    const box = document.querySelector(
+      "form.msg-form, [class*=msg-form], .msg-overlay-conversation-bubble, .msg-convo-wrapper");
+    const root = box || document;
+    const btn = root.querySelector("button.msg-form__send-button, button[type=submit].msg-form__send-btn") ||
+      [...root.querySelectorAll("button")].find(b => norm(b.innerText) === "send" || norm(b.getAttribute("aria-label")) === "send");
+    if (!btn) return { ok: false, error: "no Send button found in the message box" };
+    if (btn.disabled || btn.getAttribute("aria-disabled") === "true") {
+      return { ok: false, error: "Send is disabled (is the message box empty?)" };
+    }
+    btn.click();
+    return { ok: true, error: "" };
+  }
 
   // A text+links snapshot of the page for "collect jobs": the visible text
   // (what you can see/scrolled to) plus every real link with its URL, so the
